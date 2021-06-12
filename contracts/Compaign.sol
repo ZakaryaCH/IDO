@@ -995,6 +995,8 @@ interface IFactoryGetters {
 interface Staker {
     function stakedBalance(address account) external view returns (uint256);
     function lock(address user, uint256 unlockTime) external;
+    function getTotalPortions() external returns (uint256);
+    function tierLevel(address account) external view returns (uint256);
 }
 
 // Uniswap v2
@@ -1242,7 +1244,26 @@ contract Campaign  {
         require(invested.add(msg.value) <= maxBuyLimit, "Exceeded max amount");
         require(msg.value <= getRemaining(),"Insufficent token left");
 
+        IFactoryGetters fact = IFactoryGetters(factory);
+        address stakerAddress = fact.getStakerAddress();
+
+        Staker stakerContract = Staker(stakerAddress);
+        uint256 totalPortions = stakerContract.getTotalPortions();
+
+        uint256 poolShare = tokenSalesQty.div(totalPortions);
+
+
+
         uint256 buyAmt = calculateTokenAmount(msg.value);
+
+        uint256 userTier = stakerContract.tierLevel(msg.sender);
+
+        if (buyAmt > poolShare.mul(userTier)){
+          uint256 maxInvest = poolShare.mul(userTier).mul(hardCap).div(tokenSalesQty);
+          buyAmt = calculateTokenAmount(maxInvest);
+          msg.sender.transfer(msg.value.sub(maxInvest));
+
+        }
 
         if (invested == 0) {
             numOfParticipants = numOfParticipants.add(1);
